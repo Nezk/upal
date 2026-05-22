@@ -4,7 +4,7 @@ A typechecker for [System U](https://en.wikipedia.org/wiki/System_U).
 
 System U is known to be logically inconsistent via Girard's paradox. (Although Girard originally proved this for System U, the implementation of the paradox below is based on Herman Geuvers and Randy Pollack's formalization of Antonius Hurkens' simplified proof for System U⁻).
 
-This gives rise to a looping combinator, which allows unrestricted recursion. While it has been shown that standard fixed-point combinators (like Church's and Turing's) cannot be typed in System U⁻ (and it's believed to hold for System U as well), the looping combinator has the exact same computational power.
+Because it's inconsistent, we can construct a looping combinator which allows unrestricted recursion. While it has been shown that standard fixed-point combinators (like Church's and Turing's) cannot be typed in System U⁻ (and it's believed to hold for System U as well), the looping combinator has the exact same computational power.
 
 For a detailed analysis of this, see the paper *On Fixed point and Looping Combinators in Type Theory* by Herman Geuvers and Joep Verkoelen. 
 
@@ -77,9 +77,11 @@ Typechecking succeeded.
 
 ### Features
 
-* `--dump`: Prints the erased, untyped lambda terms
-* `>> e`/`⊢ τ`: Top-level declarations for REPL-like execution: `>> e` evaluates a term `e` (without executing IO side-effects), `⊢ τ` normalizes a type `τ` and prints its kind.
-* `?hole`/`?hole{e}`: typed holes that print the local context and the expected goal, with optional term.
+|      |      |
+| :--- | :--- |
+| `--dump`             | Prints the erased, untyped lambda terms |
+| `>> e` / `⊢ τ`       | Top-level declarations for REPL-like execution: `>> e` evaluates a term `e` (without executing IO side-effects), `⊢ τ` normalizes a type `τ` and prints its kind |
+| `?hole` / `?hole{e}` | Typed holes that print the local context and the expected goal, with an optional term guess `e` |
 
 The evaluation is lazy (call-by-need).
 
