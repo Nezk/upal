@@ -1,0 +1,40 @@
+module loop where
+
+V ∷ ◻
+V = ∀ A ∷ ◻. ((A → *) → (A → *)) → A → *
+
+U ∷ ◻
+U = V → *
+
+sb ∷ ∀ A ∷ ◻. ((A → *) → (A → *)) → A → U
+sb = Λ A. λ r a. λ z. r (z {A} r) a
+--    z          : V = ∀ A ∷ ◻. ((A → *) → (A → *)) → (A → *)
+--    z {A}      : ((A → *) → (A → *)) → (A → *)
+--    z {A} r    : A → *
+-- r (z {A} r)   : A → *
+-- r (z {A} r) a : *
+
+le ∷ (U → *) → (U → *)
+le = λ i. λ u. u (Λ A. λ r a. i (sb {A} r a))
+-- u : U = V → *
+
+induct ∷ (U → *) → *
+induct = λ i. ∀ x ∷ U. le i x → i x
+
+WF ∷ U
+WF = λ z. induct (z {U} le)
+
+ω : ∀ a ∷ U → *. induct a → a WF
+ω = Λ a. λ y. y [WF] (Λ g. y [sb {U} le g])
+
+I ∷ * → U → *
+I = λ B. λ x. (∀ a ∷ U → *. le a x → a (sb {U} le x)) → B
+
+lemma : ∀ B ∷ *. (B → B) → induct (I B)
+lemma = Λ B. λ f. Λ γ. λ p. λ q. f (q [I B] p (Λ a. q [λ d. a (sb {U} le d)]))
+
+lemma2 : ∀ B ∷ *. (B → B) → (∀ i ∷ U → *. induct i → i WF) → B
+lemma2 = Λ B. λ f. λ x. x [I B] (lemma [B] f) (Λ i. x [λ y. i (sb {U} le y)])
+
+loop : ∀ B ∷ *. (B → B) → B
+loop = Λ B. λ f. lemma2 [B] f ω

@@ -1,0 +1,30 @@
+cabal-version:      3.0
+name:               upal
+version:            0.0.0.1
+synopsis:           A System U typechecker
+license:            GPL-3.0-only
+author:             Nezk
+category:           Language
+build-type:         Simple
+                    
+executable upal
+    hs-source-dirs: src
+    ghc-options:   -Wall
+    main-is:        Main.hs
+                        
+    other-modules:  Equiv       ,
+                    Eval        ,
+                    Parser      ,
+                    Pretty      ,
+                    Run         ,
+                    Syntax      ,
+                    Typechecker ,
+                    Utils
+                    
+    build-depends:  base       >= 4.21,
+                    containers        ,
+                    mtl               ,       
+                    parsec            ,
+                    filepath          ,
+                    directory         ,
+                    text

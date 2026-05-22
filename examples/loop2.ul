@@ -1,0 +1,20 @@
+module Main where
+
+import loop
+
+fact : Int → Int
+fact = loop [Int → Int] (λ rec. λ n. 
+     (n == 0) [Int] 1 (n * rec (n - 1)))
+
+fib : Int → Int
+fib = loop [Int → Int] (λ rec. λ n.
+      (n == 0) [Int] 0
+     ((n == 1) [Int] 1 (rec (n - 1) + rec (n - 2))))
+
+|- λ i ∷ U → *. ∀ x ∷ U. le i x
+
+>> ω
+
+main : IO ()
+main = putStr ("fact 5 = " ^ showInt (fact 5) ^ "\n" ^
+               "fib 10 = " ^ showInt (fib 10) ^ "\n")
