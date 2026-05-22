@@ -77,11 +77,9 @@ Typechecking succeeded.
 
 ### Features
 
-|      |      |
-| :--- | :--- |
-| `--dump`             | Prints the erased, untyped lambda terms |
-| `>> e` / `⊢ τ`       | Top-level declarations for REPL-like execution: `>> e` evaluates a term `e` (without executing IO side-effects), `⊢ τ` normalizes a type `τ` and prints its kind |
-| `?hole{e}` | Typed holes that print the local context and the expected goal, with an optional term guess `e` |
+* `--dump`: Prints the erased, untyped lambda terms defined in the “module”
+* `>> e` / `⊢ τ`: Interactive top-level commands: `>> e` executes a term `e` (without running IO side effects), `⊢ τ` normalizes a type `τ` and prints its kind
+* `?hole` / `?hole{e}`: Typed holes that display the local context and expected goal, with an optional guess `e`
 
 The evaluation is lazy (call-by-need).
 
