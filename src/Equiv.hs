@@ -16,7 +16,7 @@ equivK glbK d k k' = case (k, k') of
   _               -> equivBody (unaliasK k) (unaliasK k')
   where equivBody bk bk' =  case (bk, bk') of
           (VKStar             , VKStar               ) -> True
-          (VKArr      a b     , VKArr      a' b'     ) -> equivK glbK d a a' && equivK glbK d b b'
+          (VKArr      a  b    , VKArr      a' b'     ) -> equivK glbK d a a' && equivK glbK d b b'
           (VKVar      l       , VKVar      l'        ) -> l == l'
           (VKForall _ body env, VKForall _ body' env') ->
             let vk  = evalK glbK (freshK d : env ) body

@@ -354,7 +354,7 @@ infer r = ask >>= \Ctx{..} -> case r of
     
     (vBody, e) <- withBindT lnm vK $ infer rBody -- eBody ∷ τBody
     
-    -- rb body type to expressions, wrap in ∀, and evaluate back to values.
+    -- rb the body type to expression, wrap it in ∀, and evaluate it back to value
     bodyTy <- withBindT lnm vK $ nfToT <$> rbT' vBody
     vTy    <- evalT' (TApp (TConst (TForall k)) (TLam lnm k bodyTy))
     

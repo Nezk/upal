@@ -124,7 +124,7 @@ The `Makefile` wraps Cabal: `make` builds the binary, and `make test` runs all e
 | `e >>= e′` | IO monad bind |
 | `42`, `3.14`, `"hello"`, `()` | Integer, double, string, and unit literals |
 | `(e : τ)` | Type annotation |
-| `?h` or `?h{e}` | Typed hole, optionally containing a guess `e` |
+| `?h` / `?h{e}` | Typed hole, optionally containing a guess `e` |
 
 ### Built-ins
 
