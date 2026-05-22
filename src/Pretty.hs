@@ -4,8 +4,9 @@
 
 module Pretty where
 
-import           Data.Bool      (bool)
-import qualified Data.Text  as   T
+import           Data.Bool            (bool  )
+import           Data.Functor.Classes (liftEq)
+import qualified Data.Text        as   T
 
 import           Syntax
 import           Utils  
@@ -103,14 +104,6 @@ isQuantNf = \case
     _                                           -> Nothing
   _                                             -> Nothing
 
-eqKind :: Kind -> Kind -> Bool
-eqKind KStar          KStar          = True
-eqKind (KArr a b)     (KArr a' b')   = eqKind a a' && eqKind b b'
-eqKind (KForall _ k)  (KForall _ k') = eqKind k k'
-eqKind (KVar i)       (KVar i')      = i == i'
-eqKind (KGlobal g)    (KGlobal g')   = g == g'
-eqKind _              _              = False
-
 collectQGen :: (a -> Quantifier a) -> Quant -> Names -> Names -> a -> Collected a
 collectQGen isQ q tNms kNms t = case isQ t of
   Just (q', mk, lnm, body) | q == q' ->
@@ -130,13 +123,17 @@ collectQNf = collectQGen isQuantNf
 groupBinds :: TyBinds -> QuantGroups
 groupBinds = foldr groupStep []
   where groupStep (n, mk) = \case
-          []                            -> [([n], mk)]
+          [              ]         -> [([n], mk)]
           (ns, mk') : rest 
-            | eqOptKind mk mk'          -> (n : ns, mk) : rest
-            | otherwise                 -> ([n],    mk) : (ns, mk') : rest
-        eqOptKind Nothing Nothing     = True
-        eqOptKind (Just k) (Just k')  = eqKind k k'
-        eqOptKind _ _                 = False
+            | liftEq eqK mk mk' -> (n : ns, mk) : rest
+            | otherwise         -> ([n],    mk) : (ns, mk') : rest
+        eqK     k  k'  = case (k, k') of -- We use equality on kinds ONLY HERE, so, I don't think it's reasonable to define Eq instance for Kinds (and we can't derive it because of lnms)
+          (KStar        , KStar          ) -> True
+          (KArr      a b, KArr      a' b') -> eqK a  a' && eqK b b'
+          (KForall _ bk , KForall _ bk'  ) -> eqK bk bk'
+          (KVar      i  , KVar      i'   ) -> i == i'
+          (KGlobal   g  , KGlobal   g'   ) -> g == g'
+          _                                -> False
 
 fmtQuantGroups :: Quant -> Names -> QuantGroups -> String
 fmtQuantGroups q kNms = \case
