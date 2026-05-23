@@ -169,9 +169,21 @@ parseRawTKLam = do
                         _ <- optional ((reservedOp ":" <|> reservedOp "::" <|> reservedOp "∷") >> (reservedOp "[]" <|> reservedOp "◻"))
                         return nms
 
+parseRawTLet :: Parser RawT
+parseRawTLet = do
+  reserved   "let"
+  lnm <- identifier
+  mK  <- optionMaybe ((reservedOp ":" <|> reservedOp "::" <|> reservedOp "∷") >> parseRawK)
+  reservedOp "="
+  ty  <- parseRawT
+  reserved   "in"
+  ty' <- parseRawT
+  return $ RTLet (LName lnm) mK ty ty'
+
 tyExp :: Parser RawT
 tyExp = withLoc RTLoc $
       try parseRawForall
+  <|> try parseRawTLet
   <|> try (parens (reservedOp "->") >> return (RTConst Arr))
   <|> try (parens (reservedOp "→" ) >> return (RTConst Arr))
   <|> try (parens (pure (RTConst Unit)))

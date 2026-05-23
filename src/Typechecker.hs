@@ -182,6 +182,15 @@ let' r = maybe
       e   <- check r vTy
       pure (vTy, e, ty))
 
+letT' :: RawT -> Maybe RawK -> TC (ValK, Type)
+letT' r = maybe
+  (inferT r)
+  (\rK -> do
+      k  <- elabK  rK
+      vK <- evalK' k
+      ty <- checkT r vK
+      pure (vK, ty))
+
 --------------------------------------------------------------------------------
 
 elabK :: RawK -> TC Kind
@@ -260,6 +269,12 @@ inferT rTy = ask >>= \Ctx{..} -> case rTy of
     
     return (VKStar, TApp (TConst TForallK) (TKLam lnm tyBody)) -- *, ∀ κ ∷ ◻. τBody
         
+  RTLet lnm mK rTy' rBody -> do                         -- let t [∷ κ] = τ′ in τBody
+    (vK    , ty'   ) <- letT' rTy' mK                   -- τ′ ∷ κ
+    (vKBody, tyBody) <- withBindT lnm vK (inferT rBody) -- τBody[tᵥ ≔ fresh] ∷ κBody
+    
+    return (vKBody, TLet lnm ty' tyBody) -- κBody, let τ = τ′ in τBody
+    
   RTLoc p rTy' -> local (\c -> c { ctxPos = Just p }) (inferT rTy')
   
   where constKind = \case
@@ -300,6 +315,11 @@ checkT rTy vKExp = ask >>= \ctx@Ctx{..} -> case rTy of
           TLam lnm k <$> withBindT lnm vK (checkT rBody vKCod)) -- τBody ∷ κCod
         mK
 
+    RTLet lnm mK rTy' rBody -> do -- let t ∷ κ = τ′ in τBody
+      (vK, ty') <- letT' rTy' mK  -- τ′ ∷ κ
+      
+      TLet lnm ty' <$> withBindT lnm vK (checkT rBody vKExp) -- let t = τ′ in τBody ∷ κExp
+
     RTLoc p rTy' -> 
       local (\c -> c { ctxPos = Just p }) (checkT rTy' vKExp)
 
@@ -311,10 +331,10 @@ checkT rTy vKExp = ask >>= \ctx@Ctx{..} -> case rTy of
         
       return ty
       
-  where errKMismAnn        = "Kind mismatch in type lambda annotation."
-        errForTLam         = "for type lambda"
-        errForTKLam        = "for kind lambda"
-        errKMism     pE pG = "Kind mismatch. Expected " ++ pE ++ " but got " ++ pG
+  where errKMismAnn       = "Kind mismatch in type lambda annotation."
+        errForTLam        = "for type lambda"
+        errForTKLam       = "for kind lambda"
+        errKMism    pE pG = "Kind mismatch. Expected " ++ pE ++ " but got " ++ pG
 
 --------------------------------------------------------------------------------
 

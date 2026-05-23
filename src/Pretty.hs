@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase    #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE ViewPatterns  #-}
 
 module Pretty where
 
@@ -12,6 +11,8 @@ import           Syntax
 import           Utils  
 
 --------------------------------------------------------------------------------
+
+-- This whole module is utter mess
 
 type Prec = Int
 
@@ -194,8 +195,9 @@ ppType tNms kNms p t = case t of
   TGlobal gnm               -> unGName gnm
   TConst  c                 -> ppConstT kNms c
   
-  TLam    lnm  k       tBdy -> let lnm' = freshTNm lnm in parens 0 $ "λ " ++ lnm' ++ fmtKindAnn kNms k ++ ". " ++ ppBodyT lnm' tBdy
-  TKLam   lnm          tBdy -> let lnm' = freshKNm lnm in parens 0 $ "λ " ++ lnm' ++ ". " ++ ppBodyK lnm' tBdy
+  TLam    lnm  k       tBdy -> let lnm' = freshTNm lnm in parens 0 $ "λ "   ++ lnm' ++ fmtKindAnn kNms k ++ ". "   ++ ppBodyT lnm' tBdy
+  TKLam   lnm          tBdy -> let lnm' = freshKNm lnm in parens 0 $ "λ "   ++ lnm' ++                      ". "   ++ ppBodyK lnm' tBdy
+  TLet    lnm  ty      tBdy -> let lnm' = freshTNm lnm in parens 0 $ "let " ++ lnm' ++ " = "  ++ pp 0 ty ++ " in " ++ ppBodyT lnm' tBdy
   
   TApp    (TApp op t') t''  | Just (sym, opP, assoc) <- isBinOp op kNms ->
       let (p', p'') = binOpAssoc opP assoc

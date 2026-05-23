@@ -59,6 +59,7 @@ data RawT
   | RTTKLam   LName              RawT
   | RTTApp                       RawT  RawT
   | RTKApp                       RawT  RawK
+  | RTLet     LName (Maybe RawK) RawT  RawT
   | RTForall  LName (Maybe RawK) RawT
   | RTForallK LName              RawT
   | RTLoc     Pos                RawT
@@ -109,8 +110,9 @@ data Type
   | TGlobal             GName                         
   | TLam    LName Kind  Type      
   | TKLam   LName       Type      
+  | TLet    LName       Type Type    -- kind annotations aren't used anywhere for term-types, so… not sure about it though
   | TApp                Type Type 
-  | TKApp               Type Kind 
+  | TKApp               Type Kind
 
 --------------------------------------------------------------------------------
 
@@ -173,7 +175,7 @@ data Exp
   | ETApp Exp Type                   
   | EKApp Exp Kind                   
   
-  | ELet LName Type Exp Exp  
+  | ELet LName Type Exp Exp -- TODO: think about necessity of Type annotation in let term 
 
   | EReturn Exp                      
   | EBind   Exp Exp                  

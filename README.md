@@ -38,7 +38,7 @@ I ∷ * → U → *
 I = λ B. λ x. (∀ a ∷ U → *. le a x → a (sb {U} le x)) → B
 
 lemma : ∀ B ∷ *. (B → B) → induct (I B)
-lemma = Λ B. λ f. Λ γ. λ p. λ q.
+lemma = Λ B. λ f. Λ _. λ p. λ q.
         f (q [I B] p (Λ a. q [λ d. a (sb {U} le d)]))
 
 lemma2 : ∀ B ∷ *. (B → B) → (∀ i ∷ U → *. induct i → i WF) → B
@@ -151,6 +151,6 @@ The `Makefile` wraps Cabal: `make` builds the binary, and `make test` runs all e
 
 Where `Bool`, `Option` and `Result` are Church-encoded (i. e., they are not built-ins):
 
-* `Bool       = ∀ r ∷ *.      r  →      r →  r`
-* `Option a   = ∀ r ∷ *.      r  → (a → r) → r`
-* `Result a b = ∀ r ∷ *. (a → r) → (b → r) → r`
+* `Bool       = ∀ R ∷ *.      R  →      R →  R`
+* `Option A   = ∀ R ∷ *.      R  → (A → R) → R`
+* `Result A B = ∀ R ∷ *. (A → R) → (B → R) → R`

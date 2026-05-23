@@ -33,8 +33,9 @@ evalT glbT glbK envT envK = \case
   TConst      c       -> VNeu              (NeuConst  (evalConstT c))
   TLam    lnm k  body -> VClosure  lnm     (evalK glbK envK k) body envT envK
   TKLam   lnm    body -> VClosureK lnm                         body envT envK
-  TApp        ty ty'  -> appT      glbT glbK       (evalT glbT glbK envT envK ty) (evalT glbT glbK envT envK ty')
-  TKApp       ty k    -> appTK     glbT glbK       (evalT glbT glbK envT envK ty) (evalK glbK           envK k)
+  TApp        ty ty'  -> appT      glbT glbK       (evalT glbT glbK envT envK ty       ) (evalT glbT glbK envT envK ty' )
+  TKApp       ty k    -> appTK     glbT glbK       (evalT glbT glbK envT envK ty       ) (evalK glbK           envK k   )
+  TLet    _   ty body -> evalT     glbT glbK       (evalT glbT glbK envT envK ty : envT)                       envK body
   where evalConstT = \case
           TBase   b -> TBase    b
           TForall k -> TForall (evalK glbK envK k)
