@@ -3,8 +3,9 @@
 module Syntax where
 
 import Data.IORef (IORef)
-import Data.Map   (Map)
-import Data.Text  (Text)
+import Data.Map   (Map  )
+import Data.Set   (Set  )
+import Data.Text  (Text )
 
 --------------------------------------------------------------------------------
 
@@ -17,13 +18,17 @@ newtype LName = LName { unLName :: String } deriving (Show, Eq)      via String
 newtype HName = HName { unHName :: String } deriving (Show, Eq)      via String 
 newtype MName = MName { unMName :: String } deriving (Show, Eq, Ord) via String 
 
-type GKinds  = Map GName ValK
-type GTypes  = Map GName ValT
-type GErased = Map GName Thunk
+type GKinds    = Map GName ValK
+type GTypes    = Map GName ValT
+type GErased   = Map GName Thunk
+
+type GKindSigs = Set GName
+type GTypeSigs = Map GName  ValK
+type GTermSigs = Map GName (Type, ValT)
 
 type Names = [LName]
-type Kinds = [Kind]
-type EnvT  = [ValT]
+type Kinds = [Kind ]
+type EnvT  = [ValT ]
 
 data Pos = Pos String Int Int deriving (Show, Eq)
 
@@ -78,16 +83,19 @@ data Raw
   | RLet    LName (Maybe RawT) Raw Raw  
   | RReturn                    Raw
   | RBind                      Raw Raw
-  | RHole   HName (Maybe Raw)
+  | RHole   HName (Maybe Raw )
   | RLoc    Pos                Raw
 
 data RawDecl
-  = RDeclKind  GName RawK
-  | RDeclType  GName RawK RawT
-  | RDeclFun   GName RawT Raw
-  | RDeclExc         Raw 
-  | RDeclEvalT       RawT
-  | RDLoc      Pos   RawDecl
+  = RDeclKindSig GName 
+  | RDeclKindDef GName RawK
+  | RDeclTypeSig GName RawK 
+  | RDeclTypeDef GName RawT
+  | RDeclSig     GName RawT
+  | RDeclDef     GName Raw
+  | RDeclExc           Raw 
+  | RDeclEvalT         RawT
+  | RDLoc        Pos   RawDecl
 
 data RawModule
   = RModule MName [MName] [RawDecl]
@@ -241,7 +249,7 @@ data IOPrim
 
 --------------------------------------------------------------------------------
 
-type Depth = Int
+type Depth =  Int
 type Views = [View]
 
 data View

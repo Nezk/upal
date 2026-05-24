@@ -128,26 +128,26 @@ The `Makefile` wraps Cabal: `make` builds the binary, and `make test` runs all e
 
 ### Built-ins
 
-| Syntax | Type |
-| :--- | :--- |
-| `(+)`, `(-)`, `(*)` | `Int → Int → Int` |
-| `(+.)`, `(-.)`, `(*.)` | `Double → Double → Double` |
-| `(/.)` | `Double → Double → Option Double` |
-| `trunc` | `Double → Int` |
-| `(==)` | `Int → Int → Bool` |
-| `(=.)` | `Double → Double → Bool` |
-| `(=^)` | `String → String → Bool` |
-| `(^)` | `String → String → String` |
-| `length` | `String → Int` |
-| `substring` | `Int → Int → String → String` |
-| `showInt` | `Int → String` |
-| `showDouble` | `Double → String` |
-| `putStr` | `String → IO ()` |
-| `getLine` | `IO (Option String)` |
-| `readFile` | `String → IO (Result String String)` |
-| `writeFile` | `String → String → IO (Result String ())` |
-| `argCount` | `IO Int` |
-| `argAt` | `Int → IO (Option String)` |
+| Syntax                 | Type                                      |
+| :---                   | :---                                      |
+| `(+)`, `(-)`, `(*)`    | `Int → Int → Int`                         |
+| `(+.)`, `(-.)`, `(*.)` | `Double → Double → Double`                |
+| `(/.)`                 | `Double → Double → Option Double`         |
+| `trunc`                | `Double → Int`                            |
+| `(==)`                 | `Int → Int → Bool`                        |
+| `(=.)`                 | `Double → Double → Bool`                  |
+| `(=^)`                 | `String → String → Bool`                  |
+| `(^)`                  | `String → String → String`                |
+| `length`               | `String → Int`                            |
+| `substring`            | `Int → Int → String → String`             |
+| `showInt`              | `Int → String`                            |
+| `showDouble`           | `Double → String`                         |
+| `putStr`               | `String → IO ()`                          |
+| `getLine`              | `IO (Option String)`                      |
+| `readFile`             | `String → IO (Result String String)`      |
+| `writeFile`            | `String → String → IO (Result String ())` |
+| `argCount`             | `IO Int`                                  |
+| `argAt`                | `Int → IO (Option String)`                |
 
 Where `Bool`, `Option` and `Result` are Church-encoded (i. e., they are not built-ins):
 

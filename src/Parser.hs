@@ -3,7 +3,6 @@
 module Parser where
 
 import           Text.Parsec
-import           Text.Parsec.String    (Parser             )
 import           Text.Parsec.Language  (emptyDef           )
 import           Text.Parsec.Expr                          
 import qualified Text.Parsec.Token  as  Token              
@@ -12,6 +11,7 @@ import           Data.List             (intercalate        )
 import           Data.Functor          ((<&>        ), ($>))
 import           Data.Functor.Identity (Identity           )
 import qualified Data.Text           as T                  
+import qualified Data.Map            as Map
                                                            
 import           Control.Monad         (when               )
 
@@ -19,8 +19,13 @@ import           Syntax
 
 --------------------------------------------------------------------------------
 
-nasketsDef :: Token.LanguageDef ()
-nasketsDef = emptyDef
+data DeclSort     = DKind | DType | DTerm
+type ParseState   = Map.Map  String DeclSort
+type Parser     a = Parsec   String ParseState          a
+type Op         a = Operator String ParseState Identity a
+
+upalDef :: Token.LanguageDef ParseState
+upalDef = emptyDef
   { Token.commentStart    = "{-"                                               ,
     Token.commentEnd      = "-}"                                               ,
     Token.commentLine     = "--"                                               ,
@@ -56,8 +61,8 @@ nasketsDef = emptyDef
        "^"  ],
     Token.caseSensitive   = True }
 
-lexer :: Token.TokenParser ()
-lexer = Token.makeTokenParser nasketsDef
+lexer :: Token.TokenParser ParseState
+lexer = Token.makeTokenParser upalDef
 
 identifier, stringLiteral :: Parser String
 
@@ -110,7 +115,7 @@ parseRKForall = do
 parseRawT :: Parser RawT
 parseRawT = withLoc RTLoc $ buildExpressionParser tTable tyApp
 
-tTable :: [[Operator String () Identity RawT]]
+tTable :: [[Op RawT]]
 tTable =
   [[infixR (reservedOp "->") (RTTApp . RTTApp (RTConst Arr)),
     infixR (reservedOp "→")  (RTTApp . RTTApp (RTConst Arr))]]
@@ -213,7 +218,7 @@ parseRaw = withLoc RLoc $
 expOp :: Parser Raw
 expOp = buildExpressionParser expTable expApp
 
-expTable :: [[Operator String () Identity Raw]]
+expTable :: [[Op Raw]]
 expTable =
   [[prefix (lsym       "-." ) (unOp  ESubD (RLit (LDouble 0.0))) ,
     prefix (reservedOp "-"  ) (unOp  ESub  (RLit (LInt 0     )))],
@@ -310,8 +315,7 @@ parseParens =
     <|> (try (reservedOp "-"  >> lsym ")") >> return (RConst ESub     ))
     <|> (try (reservedOp "*"  >> lsym ")") >> return (RConst EMul     ))
     <|> (try (reservedOp "^"  >> lsym ")") >> return (RConst EConcat  ))
-    <|> (parseRaw >>= \e -> (reservedOp ":" >> parseRawT <* lsym ")" <&> RAnn e) <|> (lsym ")" >> return e))
-  )
+    <|> (parseRaw >>= \e -> (reservedOp ":" >> parseRawT <* lsym ")" <&> RAnn e) <|> (lsym ")" >> return e)))
 
 parseRawLet :: Parser Raw
 parseRawLet = do
@@ -361,30 +365,23 @@ parseDecl = withLoc RDLoc $
 
 parseDeclBody :: String -> Parser RawDecl
 parseDeclBody gnm =
-      (do _ <- reservedOp "::" <|> reservedOp "∷"
-          (try (reservedOp "[]" <|> reservedOp "◻") >> parseKindRest)
-           <|> parseTypeRest)
+      (do _ <- reservedOp "::"     <|> reservedOp "∷"
+          (do try (reservedOp "[]" <|> reservedOp "◻")
+              modifyState (Map.insert gnm DKind)
+              return (RDeclKindSig (GName gnm))
+           <|> do k <- parseRawK
+                  modifyState (Map.insert gnm DType)
+                  return (RDeclTypeSig (GName gnm) k)))
   <|> (do _ <- reservedOp ":"
-          parseFunRest)
-  where parseKindRest = do
-          gnm' <- identifier
-          if gnm == gnm'
-            then reservedOp "=" >> parseRawK <&> RDeclKind (GName gnm)
-            else fail $ "Kind definition name '" ++ gnm' ++ "' does not match signature name '" ++ gnm ++ "'"
-        
-        parseTypeRest = do
-          k <- parseRawK
-          gnm' <- identifier
-          if gnm == gnm'
-            then reservedOp "=" >> parseRawT <&> RDeclType (GName gnm) k
-            else fail $ "Type definition name '" ++ gnm' ++ "' does not match signature name '" ++ gnm ++ "'"
-            
-        parseFunRest = do
-          ty <- parseRawT
-          gnm' <- identifier
-          if gnm == gnm'
-            then reservedOp "=" >> parseRaw <&> RDeclFun (GName gnm) ty
-            else fail $ "Function definition name '" ++ gnm' ++ "' does not match signature name '" ++ gnm ++ "'"
+          t <- parseRawT
+          modifyState (Map.insert gnm DTerm)
+          return (RDeclSig (GName gnm) t))
+  <|> (do _ <- reservedOp "="
+          sort <- Map.findWithDefault DTerm gnm <$> getState
+          case sort of
+            DKind -> RDeclKindDef (GName gnm) <$> parseRawK
+            DType -> RDeclTypeDef (GName gnm) <$> parseRawT
+            DTerm -> RDeclDef     (GName gnm) <$> parseRaw)
 
 parseMNm :: Parser MName
 parseMNm = sepBy1 identifier (reservedOp ".") <&> MName . intercalate "."
@@ -396,9 +393,17 @@ parseRawModule :: Parser RawModule
 parseRawModule = do
   Token.whiteSpace lexer
   reserved "module"
-  mnm <- parseMNm
+  
+  mnm     <- parseMNm
+  
   reserved "where"
+  
   imports <- many parseImport
   decls   <- many parseDecl
+  
   eof
+  
   return $ RModule mnm imports decls
+
+parseModule :: FilePath -> String -> Either ParseError RawModule
+parseModule = runParser parseRawModule Map.empty

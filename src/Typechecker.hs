@@ -15,6 +15,7 @@ import           Data.Functor         ((<&>      ),($>    )            )
 import           Data.Bifunctor       ( bimap                          )
 import           Data.Bool            ( bool                           )
 import qualified Data.Map          as   Map                            
+import qualified Data.Set          as   Set                            
 import           Data.List            ( elemIndex                      )
 
 import           Syntax
@@ -26,20 +27,23 @@ import           Utils
 --------------------------------------------------------------------------------
 
 data Ctx
-  = Ctx { ctxGlbT    :: GTypes    ,     
-          ctxGlbK    :: GKinds    ,     
-          ctxGlbKDef :: GKinds    ,     
-          ctxGlbET   :: GTypes    ,     
-          ctxKEnv    :: EnvK      , -- bound kind vars (introduced by Λ k ∷ ◻.)     
-          ctxTKs     :: TKinds    , -- bound type vars (introduced by Λ a ∷ κ.)
-          ctxTEnv    :: EnvT      ,      
-          ctxETs     :: EnvT      , 
-          ctxENms    :: Names     , 
-          ctxTNms    :: Names     ,      
-          ctxKNms    :: Names     ,      
-          ctxTLv     :: Lv        ,         
-          ctxKLv     :: Lv        ,         
-          ctxPos     :: Maybe Pos } 
+  = Ctx { ctxGlbT     :: GTypes    ,     
+          ctxGlbK     :: GKinds    ,     
+          ctxGlbKDef  :: GKinds    ,     
+          ctxGlbET    :: GTypes    ,
+          ctxGlbKSigs :: GKindSigs ,
+          ctxGlbTSigs :: GTypeSigs ,
+          ctxGlbSigs  :: GTermSigs ,
+          ctxKEnv     :: EnvK      , -- bound kind vars (introduced by Λ k ∷ ◻.)     
+          ctxTKs      :: TKinds    , -- bound type vars (introduced by Λ a ∷ κ.)
+          ctxTEnv     :: EnvT      ,      
+          ctxETs      :: EnvT      , 
+          ctxENms     :: Names     , 
+          ctxTNms     :: Names     ,      
+          ctxKNms     :: Names     ,      
+          ctxTLv      :: Lv        ,         
+          ctxKLv      :: Lv        ,         
+          ctxPos      :: Maybe Pos } 
 
 type Report     = [String]
 type TCResult a = (Either String a, Report)
@@ -54,7 +58,7 @@ runTC :: Ctx -> TC a -> TCResult a
 runTC ctx m = runWriter (runExceptT (runReaderT (unTC m) ctx))
 
 emptyCtx :: Ctx
-emptyCtx = Ctx Map.empty Map.empty Map.empty Map.empty [] [] [] [] [] [] [] 0 0 Nothing
+emptyCtx = Ctx Map.empty Map.empty Map.empty Map.empty Set.empty Map.empty Map.empty [] [] [] [] [] [] [] 0 0 Nothing
 
 --------------------------------------------------------------------------------
 
@@ -597,72 +601,152 @@ vUnit   = VNeu (NeuConst (TBase Unit  ))
 
 elabProgram :: RawProgram -> TCResult (Ctx, Program)
 elabProgram (RProgram decls) = runTC emptyCtx (elabDecls decls [])
-  where elabDecls []     acc = asks (, Program (reverse acc))
+  where elabDecls []     acc = do
+          Ctx{..} <- ask
+          
+          checkMissing (Set.toList ctxGlbKSigs) "kind"
+          checkMissing (Map.keys   ctxGlbTSigs) "type"
+          checkMissing (Map.keys   ctxGlbSigs ) "term"
+          
+          return (Ctx{..}, Program (reverse acc))
+          
         elabDecls (d:ds) acc = do
-          (ctx', d') <- catchError (elabDecl  d) (throwError . declErrMsg d)
-          local (const ctx')       (elabDecls ds (d' : acc))
+          (ctx', md') <- catchError (elabDecl  d) (throwError . declErrMsg d)
+          
+          local (const ctx') (elabDecls ds (maybe acc (: acc) md'))
      
         declErrMsg d err = "Error in declaration " ++ declName d ++ ":\n" ++ err
-          where declName = \case { RDLoc      _        d'  -> declName d';
-                                   RDeclKind (GName n) _   -> n;
-                                   RDeclType (GName n) _ _ -> n;
-                                   RDeclFun  (GName n) _ _ -> n;
-                                   RDeclExc   _            -> "» evaluation";
-                                   RDeclEvalT _            -> "⊢ evaluation" }
+          where declName = \case { RDLoc         _        d' -> declName d'    ;
+                                   RDeclKindSig (GName n)    -> n              ;
+                                   RDeclKindDef (GName n) _  -> n              ;
+                                   RDeclTypeSig (GName n) _  -> n              ;
+                                   RDeclTypeDef (GName n) _  -> n              ;
+                                   RDeclSig     (GName n) _  -> n              ;
+                                   RDeclDef     (GName n) _  -> n              ;
+                                   RDeclExc      _           -> "» evaluation" ;
+                                   RDeclEvalT    _           -> "⊢ evaluation" }
      
         elabDecl rdecl = ask >>= \ctx@Ctx{..} -> case rdecl of
           RDLoc p d -> local (\c -> c { ctxPos = Just p }) $ do
             
-            (ctx', d') <- elabDecl d
+            (ctx', md') <- elabDecl d
             
-            return (ctx', DLoc p d')
+            return (ctx', DLoc p <$> md')
      
-          RDeclKind gnm rK -> do
-            guardDupl gnm ctxGlbKDef "kind"
+          RDeclKindSig gnm -> do
+            guardDupl (Set.member gnm ctxGlbKSigs) gnm "kind signature"
+            guardDupl (Map.member gnm ctxGlbKDef ) gnm "kind"
+            
+            let ctx' = ctx { ctxGlbKSigs = Set.insert gnm ctxGlbKSigs,
+                             ctxPos      = Nothing }
+                     
+            return (ctx', Nothing)
+            
+          RDeclKindDef gnm rK -> do
+            guardDupl (Map.member gnm ctxGlbKDef) gnm "kind"
+            
+            if Set.member gnm ctxGlbKSigs
+              then do
+                k  <- elabK  rK
+                vK <- evalK' k
+                
+                let ctx' = ctx { ctxGlbKDef  = Map.insert gnm vK ctxGlbKDef,
+                                 ctxGlbKSigs = Set.delete gnm ctxGlbKSigs  ,
+                                 ctxPos      = Nothing }
+                         
+                return (ctx', Just (DeclKind gnm k))
+                
+              else do
+                k  <- elabK  rK
+                vK <- evalK' k
+                
+                let ctx' = ctx { ctxGlbKDef = Map.insert gnm vK ctxGlbKDef,
+                                 ctxPos     = Nothing }
+                         
+                return (ctx', Just (DeclKind gnm k))
+
+          RDeclTypeSig gnm rK -> do
+            guardDupl (Map.member gnm ctxGlbTSigs) gnm "type signature"
+            guardDupl (Map.member gnm ctxGlbK    ) gnm "type"
             
             k  <- elabK  rK
             vK <- evalK' k
             
-            let ctx' = ctx { ctxGlbKDef = Map.insert gnm vK ctxGlbKDef,
-                             ctxPos     = Nothing }
-            return (ctx', DeclKind gnm k)
-            
-          RDeclType gnm rK rTy -> do
-            guardDupl gnm ctxGlbK "type"
-            
-            k   <- elabK  rK
-            vK  <- evalK' k
-            ty  <- checkT rTy vK
-            vTy <- evalT' ty
-            
-            let ctx' = ctx { ctxGlbT = Map.insert gnm vTy ctxGlbT,
-                             ctxGlbK = Map.insert gnm vK  ctxGlbK,
-                             ctxPos  = Nothing }
+            let ctx' = ctx { ctxGlbTSigs = Map.insert gnm vK ctxGlbTSigs,
+                             ctxPos      = Nothing }
                      
-            return (ctx', DeclType gnm k ty)
+            return (ctx', Nothing)
             
-          RDeclFun gnm rTy r -> do
-            guardDupl gnm ctxGlbET "function"
+          RDeclTypeDef gnm rTy -> do
+            guardDupl (Map.member gnm ctxGlbT) gnm "type"
+            
+            maybe
+              (do (vK, ty) <- inferT rTy
+                  vTy      <- evalT' ty
+                  
+                  let ctx' = ctx { ctxGlbT = Map.insert gnm vTy ctxGlbT,
+                                   ctxGlbK = Map.insert gnm vK  ctxGlbK,
+                                   ctxPos  = Nothing }
+                           
+                  return (ctx', Just (DeclType gnm (rbK ctxGlbKDef 0 vK) ty)))
+              (\vK -> do
+                  ty  <- checkT rTy vK
+                  vTy <- evalT' ty
+                  
+                  let ctx' = ctx { ctxGlbT     = Map.insert gnm vTy ctxGlbT,
+                                   ctxGlbK     = Map.insert gnm vK  ctxGlbK,
+                                   ctxGlbTSigs = Map.delete gnm ctxGlbTSigs,
+                                   ctxPos      = Nothing }
+                           
+                  return (ctx', Just (DeclType gnm (rbK ctxGlbKDef 0 vK) ty)))
+              (Map.lookup gnm ctxGlbTSigs)
+
+          RDeclSig gnm rTy -> do
+            guardDupl (Map.member gnm ctxGlbSigs) gnm "signature"
+            guardDupl (Map.member gnm ctxGlbET  ) gnm "function"
             
             ty  <- checkT  rTy VKStar
             vTy <- evalT'  ty
-            e   <- check r vTy
             
-            let ctx' = ctx { ctxGlbET = Map.insert gnm vTy ctxGlbET,
-                             ctxPos   = Nothing }
+            let ctx' = ctx { ctxGlbSigs = Map.insert gnm (ty, vTy) ctxGlbSigs,
+                             ctxPos     = Nothing }
                      
-            return (ctx', DeclFun gnm ty e)
+            return (ctx', Nothing)
+            
+          RDeclDef gnm r -> do
+            guardDupl (Map.member gnm ctxGlbET) gnm "function"
+            
+            maybe
+              (do (vTy, e) <- infer r -- When there is no type annotation
+                  ty       <- nfToT <$> rbT' vTy
+                  
+                  let ctx' = ctx { ctxGlbET = Map.insert gnm vTy ctxGlbET,
+                                   ctxPos   = Nothing }
+                           
+                  return (ctx', Just (DeclFun gnm ty e)))
+              (\(ty, vTy) -> do
+                  e <- check r vTy
+                  
+                  let ctx' = ctx { ctxGlbET   = Map.insert gnm vTy ctxGlbET,
+                                   ctxGlbSigs = Map.delete gnm ctxGlbSigs  ,
+                                   ctxPos     = Nothing }
+                           
+                  return (ctx', Just (DeclFun gnm ty e)))
+              (Map.lookup gnm ctxGlbSigs)
             
           RDeclExc r -> do
             (_, e) <- infer r
             
-            return (ctx { ctxPos = Nothing }, DeclExc e)
+            return (ctx { ctxPos = Nothing }, Just (DeclExc e))
      
           RDeclEvalT rTy -> do
             (vK, ty) <- inferT rTy
             k        <- rbK' vK
             
-            return (ctx { ctxPos = Nothing }, DeclEvalT k ty)
+            return (ctx { ctxPos = Nothing }, Just (DeclEvalT k ty))
             
-        guardDupl gnm dict kind =
-          when (Map.member gnm dict) $ throwErr $ "Duplicate " ++ kind ++ " definition: " ++ unGName gnm
+        guardDupl isDupl gnm kind =
+          when isDupl $ throwErr $ "Duplicate " ++ kind ++ " definition: " ++ unGName gnm
+
+        checkMissing keys name =
+          unless (null keys) $ throwErr $ "Missing definitions for " ++ name ++ " signatures: " ++ unwords (map unGName keys)

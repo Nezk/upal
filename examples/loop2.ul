@@ -17,4 +17,4 @@ fib = loop [Int → Int] (λ rec. λ n.
 
 main : IO ()
 main = putStr ("fact 10 = " ^ showInt (fact 10) ^ "\n" ^
-               "fib 10 = " ^ showInt (fib 10) ^ "\n")
+               "fib 10 = "  ^ showInt (fib 10)  ^ "\n")

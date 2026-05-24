@@ -16,14 +16,12 @@ import           Data.Set           (Set                                        
 import qualified Data.Set         as Set                                       
 import qualified Data.Map         as Map                                       
                                                                                
-import           Text.Parsec        (parse                                        )
-
 import           Syntax             
 import           Eval               (evalT         , rbT                          )
 import           Equiv              (equivT                                       )
 import           Run                (buildGlobals  , runProgram   , runExc , erase)
 import           Typechecker        (elabProgram   , Ctx(..)                      )
-import           Parser             (parseRawModule                               )
+import           Parser             (parseModule                                  )
 import           Pretty             (ppErased      , ppNfT        , ppKind        )
 
 --------------------------------------------------------------------------------
@@ -49,7 +47,7 @@ loadModule base path mnmExp st = case mnmExp of
   Just e | Set.member e (stVisiting st) -> abort  $ errC e
          | Set.member e (stLoaded   st) -> return   (e, st)
   _                                     -> do
-    m@(RModule mnm imports decls) <- readFile path >>= either (abort . errP) return . parse parseRawModule path
+    m@(RModule mnm imports decls) <- readFile path >>= either (abort . errP) return . parseModule path
     
     mapM_ (\e -> when (e /= mnm) $ abort $ errM e mnm) mnmExp
     
@@ -60,7 +58,7 @@ loadModule base path mnmExp st = case mnmExp of
              else do
                hPutStrLn stderr ("Loading module " ++ unMName mnm)
                
-               let isMain  = \case { RDLoc _ d -> isMain d; RDeclFun (GName "main") _ _ -> True; _ -> False }
+               let isMain  = \case { RDLoc _ d -> isMain d; RDeclDef (GName "main") _ -> True; _ -> False }
                    hasMain = any isMain decls
                    
                if mnm == MName "Main"
@@ -98,7 +96,7 @@ parseArgs = go False
       | a == "--dump"             = go True as
       | not ("--" `isPrefixOf` a) = Just (dump, a, as)
       | otherwise                 = Nothing
-    go _ [] = Nothing
+    go _    []                    = Nothing
 
 processAndRun :: Bool -> FilePath -> [String] -> IO ()
 processAndRun dump file args = do
@@ -165,4 +163,4 @@ processAndRun dump file args = do
                   where getFun = \case
                           DLoc        _ d -> getFun d
                           DeclFun gnm _ e -> [(gnm, erase e)]
-                          _ -> []
+                          _               -> [              ]

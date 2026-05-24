@@ -1,28 +1,28 @@
 module Main where
 
-Bool ∷ *
-Bool = ∀ R ∷ *. R → R → R
-
-Option ∷ * → *
-Option = λ A. ∀ R ∷ *. R → (A → R) → R
-
+Bool   ∷         *
+Option ∷     * → *
 Result ∷ * → * → *
+
+Bool   =        ∀ R ∷ *.      R  →      R  → R
+Option = λ A  . ∀ R ∷ *.      R  → (A → R) → R
 Result = λ A B. ∀ R ∷ *. (A → R) → (B → R) → R
 
-Prod ∷ * → * → *
-Prod = λ A B. ∀ R ∷ *. (A → B → R) → R
+testBool   : String
+testOption : String
 
-testBool : String
 testBool = 
   let t = (1 == 1) [String] "True" "False" in
   let f = (1 == 0) [String] "True" "False" in
   t ^ " | " ^ f ^ "\n"
 
-testOption : String
 testOption =
   let s = (4.0 /. 2.0) [String] "None" (\_. "Some") in
   let n = (1.0 /. 0.0) [String] "None" (\_. "Some") in
   s ^ " | " ^ n ^ "\n"
+
+Prod ∷ * → * → *
+Prod = λ A B. ∀ R ∷ *. (A → B → R) → R
 
 ⊢ let F ∷ * → * = \x. x in F Int
 ⊢ λ A ∷ *. let ProdInt = Prod Int in ProdInt A
