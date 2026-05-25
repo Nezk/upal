@@ -89,42 +89,42 @@ The `Makefile` wraps Cabal: `make` builds the binary, and `make test` runs all e
 
 ### Kinds
 
-| Syntax | Description |
-| :--- | :--- |
-| `*` | Base kind |
-| `κ → κ′` | Arrow kind |
+| Syntax       | Description                                       |
+| :---         | :---                                              |
+| `*`          | Base kind                                         |
+| `κ → κ′`     | Arrow kind                                        |
 | `∀ a ∷ ◻. κ` | Universal quantification over kinds on kind level |
 
 ### Types
 
-| Syntax | Description |
-| :--- | :--- |
-| `Int`, `Double`, `String`, `()` | Base types |
-| `IO τ` | IO monad |
-| `τ → τ′` | Function type |
-| `∀ a ∷ κ. τ` | Universal quantification over types of kind `κ` |
-| `∀ a ∷ ◻. τ` | Universal quantification over kinds on type level |
-| `λ a ∷ κ. τ` | Type lambda, kind annotation is optional |
-| `Λ a ∷ ◻. τ` | Kind lambda, kind annotation is optional |
-| `τ σ` | Type application |
-| `τ {κ}` | Kind application |
+| Syntax                          | Description                                       |
+| :---                            | :---                                              |
+| `Int`, `Double`, `String`, `()` | Base types                                        |
+| `IO τ`                          | IO monad                                          |
+| `τ → τ′`                        | Function type                                     |
+| `∀ a ∷ κ. τ`                    | Universal quantification over types of kind `κ`   |
+| `∀ a ∷ ◻. τ`                    | Universal quantification over kinds on type level |
+| `λ a ∷ κ. τ`                    | Type lambda, kind annotation is optional          |
+| `Λ a ∷ ◻. τ`                    | Kind lambda, kind annotation is optional          |
+| `τ σ`                           | Type application                                  |
+| `τ {κ}`                         | Kind application                                  |
 
 ### Terms
 
-| Syntax | Description |
-| :--- | :--- |
-| `λ x : τ. e` | Lambda, type annotation is optional |
-| `Λ a ∷ κ. e` | Type lambda, kind annotation is optional |
-| `Λ a ∷ ◻. e` | Kind lambda, kind annotation is optional |
-| `e e′` | Term application |
-| `e [τ]` | Type application |
-| `e {κ}` | Kind application |
-| `let x : τ = e in e′` | Let binding, type annotation is optional |
-| `return e` | IO monad lift |
-| `e >>= e′` | IO monad bind |
-| `42`, `3.14`, `"hello"`, `()` | Integer, double, string, and unit literals |
-| `(e : τ)` | Type annotation |
-| `?h` / `?h{e}` | Typed hole, optionally containing a guess `e` |
+| Syntax                        | Description                                   |
+| :---                          | :---                                          |
+| `λ x : τ. e`                  | Lambda, type annotation is optional           |
+| `Λ a ∷ κ. e`                  | Type lambda, kind annotation is optional      |
+| `Λ a ∷ ◻. e`                  | Kind lambda, kind annotation is optional      |
+| `e e′`                        | Term application                              |
+| `e [τ]`                       | Type application                              |
+| `e {κ}`                       | Kind application                              |
+| `let x : τ = e in e′`         | Let binding, type annotation is optional      |
+| `return e`                    | IO monad lift                                 |
+| `e >>= e′`                    | IO monad bind                                 |
+| `42`, `3.14`, `"hello"`, `()` | Integer, double, string, and unit literals    |
+| `(e : τ)`                     | Type annotation                               |
+| `?h` / `?h{e}`                | Typed hole, optionally containing a guess `e` |
 
 ### Built-ins
 
