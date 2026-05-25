@@ -1,0 +1,12 @@
+module stuff where
+
+Prod ∷ * → * → *
+Prod = λ A B. ∀ R ∷ *. (A → B → R) → R
+
+⊢ let F ∷ * → * = \x. x in F Int
+⊢ λ A ∷ *. let ProdInt = Prod Int in ProdInt A
+
+unit = () : ()
+
+» trunc (1.3 *. 2.6) * 42 : Int
+» (1 : Int) : Int

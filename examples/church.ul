@@ -21,12 +21,6 @@ testOption =
   let n = (1.0 /. 0.0) [String] "None" (\_. "Some") in
   s ^ " | " ^ n ^ "\n"
 
-Prod ∷ * → * → *
-Prod = λ A B. ∀ R ∷ *. (A → B → R) → R
-
-⊢ let F ∷ * → * = \x. x in F Int
-⊢ λ A ∷ *. let ProdInt = Prod Int in ProdInt A
-
 main : IO ()
 main =
   putStr testBool                         >>= λ _.   

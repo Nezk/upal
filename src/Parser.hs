@@ -209,11 +209,12 @@ tyExp = withLoc RTLoc $
 --------------------------------------------------------------------------------
 
 parseRaw :: Parser Raw
-parseRaw = withLoc RLoc $
-      try parseRawLet
-  <|> try parseRawLam
-  <|> try parseRawBigLam
-  <|> expOp
+parseRaw = withLoc RLoc $ do
+  e <-    try parseRawLet
+      <|> try parseRawLam
+      <|> try parseRawBigLam
+      <|> expOp
+  (reservedOp ":" >> parseRawT <&> RAnn e) <|> return e
 
 expOp :: Parser Raw
 expOp = buildExpressionParser expTable expApp
@@ -315,7 +316,7 @@ parseParens =
     <|> (try (reservedOp "-"  >> lsym ")") >> return (RConst ESub     ))
     <|> (try (reservedOp "*"  >> lsym ")") >> return (RConst EMul     ))
     <|> (try (reservedOp "^"  >> lsym ")") >> return (RConst EConcat  ))
-    <|> (parseRaw >>= \e -> (reservedOp ":" >> parseRawT <* lsym ")" <&> RAnn e) <|> (lsym ")" >> return e)))
+    <|> (parseRaw <* lsym ")"))
 
 parseRawLet :: Parser Raw
 parseRawLet = do
