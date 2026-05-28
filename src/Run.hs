@@ -8,6 +8,7 @@ module Run where
 import           Control.Exception  ( Exception , throwIO  , try        )
 import           Control.Monad      ((>=>)                              )
 import           Data.Bool          ( bool                              )
+import           Data.Bifunctor     ( first                             )
                                                                     
 import           System.Environment ( getArgs                           )
 import           System.IO          ( isEOF                             )
@@ -23,9 +24,7 @@ import           Utils
 
 --------------------------------------------------------------------------------
 
--- TODO: write a comment on state of runtime
--- (currently the runtime is kinda messy becase
---  looping combinator is evaluated in very ineffecient way)
+-- TODO: write a comment on state of runtime (about --fix)
 
 newtype RuntimeError
   = RuntimeError String
@@ -119,6 +118,12 @@ step glbT env = \case
   
   XReturn  e         -> VIOAct  . IOReturn <$> mkThunk e env
   XBind    e e'      -> VIOAct <$> (IOBind <$> mkThunk e env <*> mkThunk e' env)
+
+  XFix     e         -> step glbT env e >>= \v -> do
+                          ref <- newIORef   Evaluating
+                          res <- apply glbT v  (Thunk ref)
+                          writeIORef   ref (Evaluated res)
+                          return res
 
 apply :: GErased -> ValE -> Thunk -> IO ValE
 apply glbT v thArg = case v of
@@ -247,6 +252,32 @@ takeView glbT d = \case
                Unevaluated e env
                  | XVar ix <- e, let i = unIx ix, i >= 0 && i < length env -> viewTh (depth - 1) (env !! i)
                  | otherwise                                               -> return $ VwUneval e
+
+--------------------------------------------------------------------------------
+
+optimize :: Map.Map GName Erased -> Erased -> (Erased, Bool)
+optimize env = \case
+  XApp (XApp l2 f) om
+    | matches lemma2E l2,
+      matches omegaE  om -> let (f', _) = optimize env f in (XFix f', True)
+    
+  XApp    e e' -> let (eO, b) = optimize env e; (eO', b') = optimize env e' in (XApp    eO eO', b || b')
+  XLet    e e' -> let (eO, b) = optimize env e; (eO', b') = optimize env e' in (XLet    eO eO', b || b')
+  XBind   e e' -> let (eO, b) = optimize env e; (eO', b') = optimize env e' in (XBind   eO eO', b || b')
+  XLam    e    -> first XLam    (optimize env e)
+  XReturn e    -> first XReturn (optimize env e)
+  XFix    e    -> first XFix    (optimize env e)
+  v            -> (v, False)
+  where omegaE  = XLam             (XApp (XVar (Ix 0))                                           (XVar (Ix 0)))
+        lemmaE  = XLam (XLam (XLam (XApp (XVar (Ix 2)) (XApp (XApp (XVar (Ix 0)) (XVar (Ix 1)))  (XVar (Ix 0))))))
+        lemma2E = XLam (XLam (XApp (XApp (XVar (Ix 0)) (XApp  lemmaE             (XVar (Ix 1)))) (XVar (Ix 0))))
+     
+        matches t e = case (t, e) of
+          (t'           , XGlobal g     ) | Just v <- Map.lookup g env -> matches t' v
+          (XVar   i     , XVar    i'    )                              -> i == i'
+          (XLam   t'    , XLam    e'    )                              -> matches t' e'
+          (XApp   t' t'', XApp    e' e'')                              -> matches t' e' && matches t'' e''
+          _                                                            -> False
 
 --------------------------------------------------------------------------------
 

@@ -2,27 +2,27 @@
 
 module Main where
 
-import           System.Environment (getArgs       , withArgs                     )
-import           System.Exit        (exitFailure   , exitSuccess                  )
-import           System.IO          (hPutStrLn     , stderr                       )
-import           System.FilePath    (takeDirectory , pathSeparator, (<.>)  , (</>))
-import           System.Directory   (doesFileExist                                )
-
-import           Control.Monad      (foldM         , when         , unless        )
-import           Data.List          (isInfixOf     , isPrefixOf                   )
-import           Data.Bool          (bool                                         )
-                                                                               
-import           Data.Set           (Set                                          )
-import qualified Data.Set         as Set                                       
-import qualified Data.Map         as Map                                       
-                                                                               
-import           Syntax             
-import           Eval               (evalT         , rbT                          )
-import           Equiv              (equivT                                       )
-import           Run                (buildGlobals  , runProgram   , runExc , erase)
-import           Typechecker        (elabProgram   , Ctx(..)                      )
-import           Parser             (parseModule                                  )
-import           Pretty             (ppErased      , ppNfT        , ppKind        )
+import           System.Environment (getArgs       , withArgs                               )
+import           System.Exit        (exitFailure   , exitSuccess                            )
+import           System.IO          (hPutStrLn     , stderr                                 )
+import           System.FilePath    (takeDirectory , pathSeparator, (<.>)  , (</>)          )
+import           System.Directory   (doesFileExist                                          )
+                                                                                            
+import           Control.Monad      (foldM         , when         , unless                  )
+import           Data.List          (isInfixOf     , isPrefixOf                             )
+import           Data.Bool          (bool                                                   )
+                                                                                            
+import           Data.Set           (Set                                                    )
+import qualified Data.Set         as Set                                                    
+import qualified Data.Map         as Map                                                    
+                                                                                            
+import           Syntax                                                                     
+import           Eval               (evalT         , rbT                                    )
+import           Equiv              (equivT                                                 )
+import           Run                (buildGlobals  , runProgram   , runExc , erase, optimize)
+import           Typechecker        (elabProgram   , Ctx(..)                                )
+import           Parser             (parseModule                                            )
+import           Pretty             (ppErased      , ppNfT        , ppKind                  )
 
 --------------------------------------------------------------------------------
 
@@ -85,21 +85,19 @@ loadImport base st mnm = doesFileExist path >>= bool
 --------------------------------------------------------------------------------
 
 main :: IO ()
-main = getArgs >>= \args -> case parseArgs args of
-  Just (dump, file, restArgs) -> processAndRun dump file restArgs
-  Nothing -> abort "Usage: upal [--dump] <source> [args…]"
+main = getArgs >>= maybe (abort "Usage: upal [--dump] [--fix] <source> [args…]") (\(dump, fixOpt, file, restArgs) -> processAndRun dump fixOpt file restArgs) . parseArgs
+  where parseArgs args = case rest of
+                           (file : as) -> (\(d, f) -> (d, f, file, as)) <$> parseFlags flags False False
+                           _           -> Nothing
+          where (flags, rest)     = span ("--" `isPrefixOf`) args
+                parseFlags fs d f = case fs of
+                  []             -> Just (d, f)
+                  "--dump" : fs' -> parseFlags fs' True f
+                  "--fix"  : fs' -> parseFlags fs' d    True
+                  _              -> Nothing
 
-parseArgs :: [String] -> Maybe (Bool, FilePath, [String])
-parseArgs = go False
-  where
-    go dump (a:as)
-      | a == "--dump"             = go True as
-      | not ("--" `isPrefixOf` a) = Just (dump, a, as)
-      | otherwise                 = Nothing
-    go _    []                    = Nothing
-
-processAndRun :: Bool -> FilePath -> [String] -> IO ()
-processAndRun dump file args = do
+processAndRun :: Bool -> Bool -> FilePath -> [String] -> IO ()
+processAndRun dump fixOpt file args = do
   (entryNm, finalState) <- loadModule (takeDirectory file) file Nothing (LoadState Set.empty Set.empty [])
   
   hPutStrLn stderr ""
@@ -124,19 +122,31 @@ processAndRun dump file args = do
               let rawGlbsList = extractGlobalsList prg
                   allGlbs     = Map.fromList rawGlbsList
                   
+                  (optGlbs, optimizedNames) = 
+                    if fixOpt 
+                    then let res = Map.map (optimize allGlbs) allGlbs
+                         in (Map.map fst res, [ k | (k, _) <- rawGlbsList, snd (res Map.! k) ])
+                    else (allGlbs, [])
+                    
+              unless (null optimizedNames) $
+                hPutStrLn stderr $ fixMsg ++ unwords (map unGName optimizedNames) ++ "\n"
+                  
               when dump $ do
                 hPutStrLn stderr "\n──────── Erased ────────\n"
-                mapM_ (\(k, v) -> hPutStrLn stderr (unGName k ++ " =\n  " ++ ppErased [] 0 0 v ++ "\n")) rawGlbsList
+                mapM_ (\(k, _) -> let v = optGlbs Map.! k in hPutStrLn stderr (unGName k ++ " =\n  " ++ ppErased [] 0 0 v ++ "\n")) rawGlbsList
                 hPutStrLn stderr "─────────────────────────\n"
                   
-              rtGlbs <- buildGlobals allGlbs
+              rtGlbs <- buildGlobals optGlbs
               unless (null cmds) $ do
                 let runCmds _       []     = return ()
                     runCmds prevCmd (c:cs) = do
                       let currCmd    = case c of { CmdExc{} -> True; CmdEvalT{} -> False } 
                       when (prevCmd /= Nothing && prevCmd /= Just currCmd) $ putStrLn ""
                       case c of
-                        CmdExc   e    -> runExc rtGlbs e
+                        CmdExc   e    -> do
+                          let (eOpt, eFixed) = if fixOpt then optimize allGlbs e else (e, False)
+                          when eFixed $ hPutStrLn stderr (fixMsg ++ "expression")
+                          runExc rtGlbs eOpt
                         CmdEvalT k ty -> do
                           putStrLn $ "⊢ " ++ ppNfT  [] [] 0 (rbT glbT glbK 0 0 (evalT glbT glbK [] [] ty))
                           putStrLn $ "∷ " ++ ppKind []    0  k
@@ -158,6 +168,7 @@ processAndRun dump file args = do
                 hlsErr         = "Typechecking succeeded (with holes)."
                 mtErr          = "Typechecking succeeded, but main does not have type IO (). Execution aborted."
                 mnErr          = "Typechecking succeeded, but main was not found."
+                fixMsg         = "[Fix] Applied looping combinator optimization in: "
 
                 extractGlobalsList (Program decls) = concatMap getFun decls
                   where getFun = \case

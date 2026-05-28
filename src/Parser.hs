@@ -107,7 +107,7 @@ parseRKForall = do
   let flatBinders = concat binderGroups
   return $ foldr (RKForall . LName) body flatBinders
   where parseGroup = do nms <- many1 identifier
-                        _   <- optional ((reservedOp "::" <|> reservedOp "∷" <|> reservedOp ":") >> (reservedOp "[]" <|> reservedOp "◻"))
+                        _   <- optional ((reservedOp "::" <|> reservedOp "∷") >> (reservedOp "[]" <|> reservedOp "◻"))
                         return nms
 
 --------------------------------------------------------------------------------
@@ -146,7 +146,7 @@ parseRawForall = do
   return $ foldr (\(n, e) b -> either (\_ -> RTForallK (LName n) b) (\mk -> RTForall (LName n) mk b) e) body flatBinders
   where parseGroup = do nms <- many1 identifier
                         e <- option (Right Nothing) $ try $ do
-                               _ <- reservedOp ":" <|> reservedOp "::" <|> reservedOp "∷"
+                               _ <- reservedOp "::" <|> reservedOp "∷"
                                (reservedOp "[]" <|> reservedOp "◻") $> Left () <|> (Right . Just) <$> parseRawK
                         return [ (n, e) | n <- nms ]
 
@@ -159,7 +159,7 @@ parseRawTLam = do
   let flatBinders = concat binderGroups
   return $ foldr (\(n, mk) b -> RTTLam (LName n) mk b) body flatBinders
   where parseGroup = do nms <- many1 identifier
-                        mk <- optionMaybe ((reservedOp ":" <|> reservedOp "::" <|> reservedOp "∷") >> parseRawK)
+                        mk <- optionMaybe ((reservedOp "::" <|> reservedOp "∷") >> parseRawK)
                         return [ (n, mk) | n <- nms ]
 
 parseRawTKLam :: Parser RawT
@@ -171,14 +171,14 @@ parseRawTKLam = do
   let flatBinders = concat binderGroups
   return $ foldr (\n b -> RTTKLam (LName n) b) body flatBinders
   where parseGroup = do nms <- many1 identifier
-                        _ <- optional ((reservedOp ":" <|> reservedOp "::" <|> reservedOp "∷") >> (reservedOp "[]" <|> reservedOp "◻"))
+                        _ <- optional ((reservedOp "::" <|> reservedOp "∷") >> (reservedOp "[]" <|> reservedOp "◻"))
                         return nms
 
 parseRawTLet :: Parser RawT
 parseRawTLet = do
   reserved   "let"
   lnm <- identifier
-  mK  <- optionMaybe ((reservedOp ":" <|> reservedOp "::" <|> reservedOp "∷") >> parseRawK)
+  mK  <- optionMaybe ((reservedOp "::" <|> reservedOp "∷") >> parseRawK)
   reservedOp "="
   ty  <- parseRawT
   reserved   "in"
@@ -351,7 +351,7 @@ parseRawBigLam = do
   return $ foldr (\(n, e) b -> either (\_ -> RKLam (LName n) b) (\mk -> RTLam (LName n) mk b) e) body flatBinders
   where parseGroup = do nms <- many1 identifier
                         e <- option (Right Nothing) $ try $ do
-                               _ <- reservedOp ":" <|> reservedOp "::" <|> reservedOp "∷"
+                               _ <- reservedOp "::" <|> reservedOp "∷"
                                (reservedOp "[]" <|> reservedOp "◻") $> Left () <|> (Right . Just) <$> parseRawK
                         return [ (n, e) | n <- nms ]
 

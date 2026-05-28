@@ -1,8 +1,6 @@
 {-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE FlexibleContexts           #-}
 
 module Typechecker where
 
@@ -11,7 +9,7 @@ import           Control.Monad.Reader
 import           Control.Monad.Writer
 import           Control.Monad        ( when      , unless, forM, forM_)
                                                  
-import           Data.Functor         ((<&>      ),($>    )            )
+import           Data.Functor         ((<&>)      ,($>)                )
 import           Data.Bifunctor       ( bimap                          )
 import           Data.Bool            ( bool                           )
 import qualified Data.Map          as   Map                            
@@ -38,9 +36,9 @@ data Ctx
           ctxTKs      :: TKinds    , -- bound type vars (introduced by Λ a ∷ κ.)
           ctxTEnv     :: EnvT      ,      
           ctxETs      :: EnvT      , 
-          ctxENms     :: Names     , 
-          ctxTNms     :: Names     ,      
-          ctxKNms     :: Names     ,      
+          ctxENms     :: LNames    , 
+          ctxTNms     :: LNames    ,      
+          ctxKNms     :: LNames    ,      
           ctxTLv      :: Lv        ,         
           ctxKLv      :: Lv        ,         
           ctxPos      :: Maybe Pos } 
@@ -152,7 +150,7 @@ reportHole hnm mR mVTy = ask >>= \ctx@Ctx{..} ->
                                     (infer r          <&> \(vTy, e) ->            (Just vTy  , Nothing  , False, Just  e))
                                     (\_                             -> pure       (Nothing   , Just errC, False, Nothing)))
 
-resolve :: UName -> Names -> Map.Map GName a -> String -> (Ix -> TC b) -> (GName -> a -> TC b) -> TC b
+resolve :: UName -> LNames -> Map.Map GName a -> String -> (Ix -> TC b) -> (GName -> a -> TC b) -> TC b
 resolve (UName unm) nms glbs err onBnd onGlb =
   maybe (maybe (throwErr err)
                (onGlb      (GName unm      ))
@@ -680,26 +678,22 @@ elabProgram (RProgram decls) = runTC emptyCtx (elabDecls decls [])
           RDeclTypeDef gnm rTy -> do
             guardDupl (Map.member gnm ctxGlbT) gnm "type"
             
-            maybe
+            (vK, ty, vTy, sigs) <- maybe
               (do (vK, ty) <- inferT rTy
                   vTy      <- evalT' ty
-                  
-                  let ctx' = ctx { ctxGlbT = Map.insert gnm vTy ctxGlbT,
-                                   ctxGlbK = Map.insert gnm vK  ctxGlbK,
-                                   ctxPos  = Nothing }
-                           
-                  return (ctx', Just (DeclType gnm (rbK ctxGlbKDef 0 vK) ty)))
+                  return (vK, ty, vTy, ctxGlbTSigs))
               (\vK -> do
                   ty  <- checkT rTy vK
                   vTy <- evalT' ty
-                  
-                  let ctx' = ctx { ctxGlbT     = Map.insert gnm vTy ctxGlbT,
-                                   ctxGlbK     = Map.insert gnm vK  ctxGlbK,
-                                   ctxGlbTSigs = Map.delete gnm ctxGlbTSigs,
-                                   ctxPos      = Nothing }
-                           
-                  return (ctx', Just (DeclType gnm (rbK ctxGlbKDef 0 vK) ty)))
+                  return (vK, ty, vTy, Map.delete gnm ctxGlbTSigs))
               (Map.lookup gnm ctxGlbTSigs)
+              
+            let ctx' = ctx { ctxGlbT     = Map.insert gnm vTy ctxGlbT,
+                             ctxGlbK     = Map.insert gnm vK  ctxGlbK,
+                             ctxGlbTSigs = sigs,
+                             ctxPos      = Nothing }
+                     
+            return (ctx', Just (DeclType gnm (rbK ctxGlbKDef 0 vK) ty))
 
           RDeclSig gnm rTy -> do
             guardDupl (Map.member gnm ctxGlbSigs) gnm "signature"
@@ -716,23 +710,20 @@ elabProgram (RProgram decls) = runTC emptyCtx (elabDecls decls [])
           RDeclDef gnm r -> do
             guardDupl (Map.member gnm ctxGlbET) gnm "function"
             
-            maybe
+            (ty, vTy, e, sigs) <- maybe
               (do (vTy, e) <- infer r -- When there is no type annotation
                   ty       <- nfToT <$> rbT' vTy
-                  
-                  let ctx' = ctx { ctxGlbET = Map.insert gnm vTy ctxGlbET,
-                                   ctxPos   = Nothing }
-                           
-                  return (ctx', Just (DeclFun gnm ty e)))
+                  return (ty, vTy, e, ctxGlbSigs))
               (\(ty, vTy) -> do
                   e <- check r vTy
-                  
-                  let ctx' = ctx { ctxGlbET   = Map.insert gnm vTy ctxGlbET,
-                                   ctxGlbSigs = Map.delete gnm ctxGlbSigs  ,
-                                   ctxPos     = Nothing }
-                           
-                  return (ctx', Just (DeclFun gnm ty e)))
+                  return (ty, vTy, e, Map.delete gnm ctxGlbSigs))
               (Map.lookup gnm ctxGlbSigs)
+              
+            let ctx' = ctx { ctxGlbET   = Map.insert gnm vTy ctxGlbET,
+                             ctxGlbSigs = sigs,
+                             ctxPos     = Nothing }
+                     
+            return (ctx', Just (DeclFun gnm ty e))
             
           RDeclExc r -> do
             (_, e) <- infer r

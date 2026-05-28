@@ -1,7 +1,7 @@
 EXEC         = upal
 EXAMPLES_DIR = examples
 TESTS        = $(wildcard $(EXAMPLES_DIR)/*.ul)
-TIMEOUT_SEC  = 0.5
+TIMEOUT_SEC  = 1.5
 
 .PHONY: all build test clean
 

@@ -26,9 +26,8 @@ type GKindSigs = Set GName
 type GTypeSigs = Map GName  ValK
 type GTermSigs = Map GName (Type, ValT)
 
-type Names = [LName]
-type Kinds = [Kind ]
-type EnvT  = [ValT ]
+type LNames = [LName]
+type EnvT   = [ValT ]
 
 data Pos = Pos String Int Int deriving (Show, Eq)
 
@@ -215,10 +214,10 @@ data Erased
   | XLet    Erased Erased
   | XReturn Erased
   | XBind   Erased Erased
+  | XFix    Erased
 
 type Env      = [Thunk] 
 type ArgsE    = [Thunk] 
-type ExcDecls = [Exp]   
 
 data ThunkState
   = Unevaluated Erased Env
@@ -277,9 +276,6 @@ data Decl
   | DeclExc              Exp
   | DeclEvalT       Kind Type
   | DLoc      Pos        Decl
-
-data Module
-  = Module MName [MName] [Decl]
 
 newtype Program
   = Program [Decl]
